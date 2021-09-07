@@ -52,7 +52,6 @@ using Random                     # for loglikelyhood
 ##    include other files; order important    ##
 ################################################
 
-include("matrix_computation.jl")
 include("macro.jl")
 include("hierachy-model_loglikelyhood.jl")
 include("getvar.jl")

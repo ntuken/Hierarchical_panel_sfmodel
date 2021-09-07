@@ -1,19 +1,13 @@
 function getvar(dat::DataFrame)
 
-    yvar = dat[:, _dicM[:depvar]]   # still a DataFrame
-    xvar = dat[:, _dicM[:frontier]]
-
-    tvar = dat[:, _dicM[:timevar][1]] # the [1] make _dicM[:timevar] element, not vector ==> tvar is vector not dataframe
-    Gvar = dat[:, _dicM[:Gvar]]
-    ivar = dat[:, _dicM[:idvar][1]] # need the [1] otherwise causes problems down the road
-
+    
     #* --- model info printout --------- 
 
     modelinfo1 = "A hierachy panel data stochastic frontier model for the estimation of stochastic metafrontiers"
 
     modelinfo2 = begin
     """
-    $(_dicM[:depvar][1]) = frontier(dₜ + $(_dicM[:frontier])) + cᵢ + w_g(i) + uᵢₜ,
+    $(_dicM[:depvar][1]) = frontier($(_dicM[:frontier])) + dₜ + cᵢ + w_g(i) + uᵢₜ,
      
     where uᵢₜ = u⁰ᵢₜ - u*ᵢₜ
           uᵒᵢₜ ∼ N(0, σ²ᵤ₀)
@@ -40,13 +34,22 @@ function getvar(dat::DataFrame)
                = exp($(_dicM[:σ²w_star]));
      """
     end
+    # yvar = dat[:, _dicM[:depvar]]   # still a DataFrame
+    # xvar = dat[:, _dicM[:frontier]]
+    # Gvar = dat[:, _dicM[:Gvar]]
+    # ivar = dat[:, _dicM[:idvar][1]] # need the [1] otherwise causes problems down the road
+
+    tvar = dat[:, _dicM[:timevar][1]] # the [1] make _dicM[:timevar] element, not vector ==> tvar is vector not dataframe
+    
+    data = deepcopy(dat)  # using deepcopy to make data dataframe independent to original dat (i.e. changing data don't change dat )
+
+    # sort data by group, id, time
+    data = sort!(data,[_dicM[:Gvar][1], _dicM[:idvar][1], _dicM[:timevar][1]])  # the [1] make _dicM[:timevar] element, not vector
 
     #* --- get dummy variable of timevar --- *#
 
-    #              !!!!!!!!!!!!!   waiting for coding   !!!!!!!!!!!!!
-    #                              output: Tvar matrix          #
     
-    unique_T = unique(tvar)  
+    unique_T = sort(unique(tvar))  # sort to make sure time dummy variables (Tvar) are in ascending order
 
     Tvar = DataFrame()  # intitialize dummy time dataframe, not matrix since need to reserve time information in column label
     # e.g.  
@@ -61,16 +64,31 @@ function getvar(dat::DataFrame)
         Tvar[!,"$Time"] = Float64.(tvar .== Time)
     end
 
+    data = hcat(data[!,Not(dicM[:timevar][1])], Tvar)  
+
+    # create group_span and id_span to collect number of row in each group and id
+    # e.g. 
+    # data =   group     id    timevar
+    #            1       1        1
+    #            1       1        2
+    #            1       2        1
+    #            1       2        2
+    #            2       3        1
+    #            2       3        2
+    # then group_span = {1=>4, 2=>2}, 4 is number of row in group 1
+    # id_span = {1=>2, 2=>2, 3=>2}      
+    group_span = sort!(OrderedDict(countmap(data[:,_dicM[:Gvar][1]])))
+    id_span = sort!(OrderedDict(countmap(data[:,_dicM[:idvar][1]])))
+
+
     #* --- retrieve and generate important parameters -----
 
     #*   number of obs and number of variables
     nofx  = nofT = 0  # to make a complete list
 
     nofobs  = nrow(dat)    
-    nofx = size(xvar)[2]  # nofx: number of x vars
-    nofT = size(Tvar)[2]  # nofT: number of unique time in data set
-
-
+    nofx = length(_dicM[:frontier])  # nofx: number of x vars
+    nofT = length(unique_T)  # nofT: number of unique time in data set
   
     nofpara = nofx + nofT + 6 # coefficient β, D and log_σ²₍₀, log_σ²₍*, log_σ²ᵤ₀, log_σ²ᵤ*, log_σ²w⁰, log_σ²w*
 
@@ -121,30 +139,21 @@ function getvar(dat::DataFrame)
               coeff_log_σ²w_star  = pos_log_σ²w_star)
 
     #* retrieve variable names for making tables
-    xnames  = names(xvar)
-  # znames  = names(zvar)
+    xnames  = names(data[!, _dicM[:frontier]])
     Tnames  = names(Tvar)
     
     varlist = vcat(" ", xnames, Tnames, 
                         ["log_σ²ᵤ₀","log_σ²ᵤ*", "log_σ²₍₀", "log_σ²₍*", "log_σ²w⁰", "log_σ²w*" ])
 
    
+    
     #* Converting the dataframe to matrix in order to do computation
-    yvar  = convert(Array{Float64}, yvar)
-    xvar = convert(Array{Float64}, xvar)
+    yvar  = convert(Array{Float64}, data[:, _dicM[:depvar][1]])  # vector{Float64}
+    xvar = convert(Array{Float64}, data[:, _dicM[:frontier]])
     Tvar = convert(Array{Float64}, Tvar)
-    Gvar  = convert(Array{Float64}, Gvar)
-    ivar  = convert(Array{Float64}, ivar)
+    Gvar  = convert(Array{Float64}, data[:, _dicM[:Gvar][1]])    # vector{Float64}
+    ivar  = convert(Array{Float64}, data[:, _dicM[:idvar][1]])   # vector{Float64}
 
 
-    
-    #* panel info and within transformation
-
-
-    IDRow_dict = IDRow_Dict(ivar)   # (Nx2): col_1 is panel's row info; col_2 is panel's number of periods
-    GID_dict = GID_Dict(Gvar, ivar)       # (Nx2): col_1 is group's row info; col_2 is ∑ (id_g * time_g) for each group
-
-    
-
-    return modelinfo1, modelinfo2, posvec, nofvar, eqvec, eqvec2, yvar, xvar, Tvar, IDRow_dict, GID_dict, varlist
+    return modelinfo1, modelinfo2, posvec, nofvar, eqvec, eqvec2, yvar, xvar, Tvar, group_span , id_span, varlist
 end  # getvar

@@ -89,16 +89,16 @@ println("the end !!!!!")
 # 	 tolerance(1e-8)
 # 	 #, silent(true)
 #      )
-# res = ()
+res = ()
 
-# @time res = fit(df)
+@time res = fit(df)
 
-# println("start to predict !!")
-# println("test1(frontier) is :", predict(@eq(frontier), df))
-# println("test2 (log_σ²₍₀) is :", predict(@eq(log_σ²₍₀), df))
-# println("test 3 (σ²₍₀) is :", predict(@eq(σ²₍₀), df))
+println("start to predict !!")
+println("test1(frontier) is :", predict(@eq(frontier), df))
+println("test2 (log_σ²₍₀) is :", predict(@eq(log_σ²₍₀), df))
+println("test 3 (σ²₍₀) is :", predict(@eq(σ²₍₀), df))
 
-# println("the end !!!!!")
+println("the end !!!!!")
 
 
 

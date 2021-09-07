@@ -1,16 +1,10 @@
-# modify u_it part:
-
-# log_like_func
-# rho: 待估計參數
-# colproduct function is defined in matrix_computation
-# val_random_seed = 237411+24 (bseed+addseed)
 # using Random, Distributions, Statistics package
 using HaltonSequences
 
 """ set random seed and nofdraw here !!  """
 Random.seed!(val_random_seed)
 
-# create  HaltonSequences
+""" create  HaltonSequences  """
 
 nofdraw = 100
 randseq_tmp = HaltonPoint(4, start=20, length=nofdraw)  # dimension is 4(w_0, w_star, c_0, c_star)
@@ -22,7 +16,7 @@ end
 
 
 function LL_T(Y, X, T,
-   po, rho, IDRow_dict, GID_dict, nofdraw =nofdraw, halton=randseq)
+   po, rho, group_span, id_span, nofdraw=nofdraw, halton=randseq)
     # X may include const  
     
     β  = rho[1:po.endx]
@@ -133,4 +127,4 @@ function LL_T(Y, X, T,
 
 
     return -lnLike
-end
+end`
