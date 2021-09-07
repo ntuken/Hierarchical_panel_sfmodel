@@ -34,7 +34,8 @@ using Optim
 using DataFrames
 using NLSolversBase              # for hessian!
 using StatsFuns                  # for normlogpdf(), normlogcdf()
-using Statistics                 #! not sure
+using Statistics 
+using StatsBase                  # for countmap()
 using HypothesisTests            # for pvalue()
 using LinearAlgebra              # extract diagnol and Matrix(I,...)
 using Distributions              # for TDist, Normal
