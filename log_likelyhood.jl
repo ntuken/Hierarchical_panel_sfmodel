@@ -1,16 +1,10 @@
-# modify u_it part:
-
-# log_like_func
-# rho: 待估計參數
-# colproduct function is defined in matrix_computation
-# val_random_seed = 237411+24 (bseed+addseed)
 # using Random, Distributions, Statistics package
 using HaltonSequences
 
 """ set random seed and nofdraw here !!  """
 Random.seed!(val_random_seed)
 
-# create  HaltonSequences
+""" create  HaltonSequences  """
 
 nofdraw = 100
 randseq_tmp = HaltonPoint(4, start=20, length=nofdraw)  # dimension is 4(w_0, w_star, c_0, c_star)
@@ -22,12 +16,11 @@ end
 
 
 function LL_T(Y, X, T,
-   po, rho, IDRow_dict, GID_dict, nofdraw =nofdraw, halton=randseq)
+   po, rho,   nofobsinG_list , noffirm_list, noftime_list, nofdraw=nofdraw, halton=randseq)
     # X may include const  
     
     β  = rho[1:po.endx]
     ϴ = rho[po.begT:po.endT]
-    # τ  = rho[po.begq : po.endq]
     δ1 = rho[po.pos_log_σ²ᵤ₀]  # σ²_u⁰ = exp(δ2)
     δ2 = rho[po.pos_log_σ²ᵤ_star]
 
@@ -61,53 +54,45 @@ function LL_T(Y, X, T,
 
     lnLike = 0.0  # initilize lnlike 
 
+    g_row_beg = 1
     
-
-    for g in keys(GID_dict)
+    # nofobsinG, noffirm, noftime
+    firm_index = 1
+    for g in 1:length(nofobsinG_list)
         
-        
+        nofobsinG = nofobsinG_list[g]
+        noffirm = noffirm_list[g]
+        g_row_end = g_row_beg + nofobsinG - 1
         like_gg = Array{Real}(undef, nofdraw, nofdraw)  # initilize like_gg vector
         # given group g, retrieve all rows in group g
-        row_g = []
-        for id in GID_dict[g]
-            append!(row_g, IDRow_dict[id])    # using append! instead of push! since I want to append elements in list rather than append list
-        
-        end
-
-        nofobsinG = length(row_g)
-        noffirm = length(GID_dict[g])
-
-        # block_g = (Y[row_g] .- (X[row_g, :] * β ) .- (T[row_g,:] * ϴ)) .*ones(nofobsinG, nofdraw) .- (my_w_g)'
+        block_g = (Y[g_row_beg:g_row_end] .- (X[g_row_beg:g_row_end, :] * β ) .- (T[g_row_beg:g_row_end,:] * ϴ)) .*ones(nofobsinG, nofdraw) .- (my_w_g)'
         # (Y[row_g] .- (X[row_g, :] * β ) .- (T[row_g,:] * ϴ)) .*ones(nofobsinG, nofdraw) is NT X S_w matrix
         # (my_w_g)' is transpose of my_w_g, and is 1 X S_w matrix, 
         # block_g is NT X S_w matrix, each column is residual minus different draw from my_w_g
-        
+
+        g_row_beg = g_row_end + 1
         
         Like_my2 = Array{Real}(undef, noffirm, nofdraw)  # initilize with Real type since ForwardDiff require
 
-        row = 1
-        for id in GID_dict[g]
-            
-            id_row = IDRow_dict[id]
-            noftime = length(id_row)
-            
+        id_row_beg = 1
+        Like_my2_index = 1
+        for id in 1:noffirm
+            noftime = noftime_list[firm_index]
+            id_row_end = id_row_beg + noftime - 1
             cexpand = kronecker(ones(noftime, nofdraw), (my_c_i)')
-            # cexpand is T X(S X S) matrix, given colummn, the value would be same
+            # cexpand is T X(S X S) matrix, given same colummn, the value would be same
             
-
-            nofobsinG_id = length(id_row)
-            block_g_id = (Y[id_row] .- (X[id_row, :] * β ) .- (T[id_row,:] * ϴ)) .*ones(nofobsinG_id, nofdraw) .- (my_w_g)'
-            u_it = kronecker(block_g_id, ones(1, nofdraw))  - cexpand
-            
+            u_it = kronecker(block_g[id_row_beg:id_row_end,:], ones(1, nofdraw)) - cexpand
             #  kronecker(block_g[id_row, :], ones(1, nofdraw)) is T X (S_w X S_c) matrix
             #  (cexpand) is T X (S_w X S_c) matrix
-            
+
+            id_row_beg = id_row_end + 1
             Like_i_mat = (2/sigma_u) .* pdf(Normal(0,1), u_it ./ sigma_u) .* cdf(Normal(0,1), lambda_u .* u_it ./ sigma_u)
 
             #  Likelihood values of observations within a firm, T x (S_w * S_c)  matrix   
             
             
-            Like2_ii =  exp.(sum(log.(Like_i_mat), dims=1))  # 1 X (S_w*S_c) vector  
+            Like2_ii =  exp.(sum(log.(Like_i_mat), dims=1))  # 1 X (S_w*S_c) Matrix  
             Like_ii = reshape(Like2_ii, nofdraw, nofdraw)
             #  e.g. Like2_ii = [ 1         ,2        ,3        ,4]      
             #                  -w_1-c_1  -w_1-c_2    -w_2-c_1   -w_2-c_2
@@ -115,8 +100,8 @@ function LL_T(Y, X, T,
             #                   2 4]
             Like_my1 = mean(Like_ii, dims=1)  # mean over S_c simulation draw
 
-            Like_my2[row,:] = Like_my1        # Like_my2 is N X s_w matrix
-            row += 1
+            Like_my2[Like_my2_index,:] = Like_my1        # Like_my2 is N X s_w matrix
+            Like_my2_index += 1
             
 
         end  # loop over id

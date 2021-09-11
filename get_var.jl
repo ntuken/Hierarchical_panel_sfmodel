@@ -1,51 +1,13 @@
-
-function GID_Dict(Gvar, ivar)
-  # output G, ID paired dictionary
-    GID_dict = Dict()  # intitialize dictionary whose key is Group value(Int64) and value is all ID in given group
-    GID_pair = unique(zip(Gvar, ivar))
-
-    for (g, ID) in GID_pair
-        if haskey(GID_dict, g)
-            GID_dict[g] = push!(GID_dict[g], ID)
-        else
-            GID_dict[g] = [ID]
-        end
-    end
-    return GID_dict
-end
-
-
-function IDRow_Dict(ivar)
-  # output ID, Row index paired dictionary
-    IDRow_dict = Dict()  # intitialize dictionary whose key is Group value(Float64) and value is all ID in given group
-    unique_ID = unique(ivar)               
-
-    for id in unique_ID
-        
-        IDRow_dict[id] = findall(ivar .== id)
-    end
-
-    return IDRow_dict
-
-end
-
-
 function getvar(dat::DataFrame)
-
-    yvar = dat[:, _dicM[:depvar]]   # still a DataFrame
-    xvar = dat[:, _dicM[:frontier]]
-
-    tvar = dat[:, _dicM[:timevar][1]] # the [1] make _dicM[:timevar] element, not vector ==> tvar is vector not dataframe
-    Gvar = dat[:, _dicM[:Gvar]]
-    ivar = dat[:, _dicM[:idvar][1]] # need the [1] otherwise causes problems down the road
-
+    # intercept_exist parameter is true if dat have intercept column (i.e. _cons column)
+    
     #* --- model info printout --------- 
 
     modelinfo1 = "A hierachy panel data stochastic frontier model for the estimation of stochastic metafrontiers"
 
     modelinfo2 = begin
     """
-    $(_dicM[:depvar][1]) = frontier(dₜ + $(_dicM[:frontier])) + cᵢ + w_g(i) + uᵢₜ,
+    $(_dicM[:depvar][1]) = frontier($(_dicM[:frontier])) + dₜ + cᵢ + w_g(i) + uᵢₜ,
      
     where uᵢₜ = u⁰ᵢₜ - u*ᵢₜ
           uᵒᵢₜ ∼ N(0, σ²ᵤ₀)
@@ -72,13 +34,49 @@ function getvar(dat::DataFrame)
                = exp($(_dicM[:σ²w_star]));
      """
     end
+    # yvar = dat[:, _dicM[:depvar]]   # still a DataFrame
+    # xvar = dat[:, _dicM[:frontier]]
+    # Gvar = dat[:, _dicM[:Gvar]]
+    # ivar = dat[:, _dicM[:idvar][1]] # need the [1] otherwise causes problems down the road
+
+    tvar = dat[:, _dicM[:timevar][1]] # the [1] make _dicM[:timevar] element, not vector ==> tvar is vector not dataframe
+    
+    data = deepcopy(dat)  # using deepcopy to make data dataframe independent to original dat (i.e. changing data don't change dat )
+
+    # sort data by group, id, time
+    data = sort!(data,[_dicM[:Gvar][1], _dicM[:idvar][1], _dicM[:timevar][1]])  # the [1] make _dicM[:timevar] element, not vector
+
+    # create group_span and id_span to collect number of row in each group and id
+    # e.g. 
+    # data =   group     id    timevar
+    #            1       1        1
+    #            1       1        2
+    #            1       2        1
+    #            1       2        2
+    #            2       3        1
+    #            2       3        2
+    # then group_span = {1=>4, 2=>2}, 4 is number of row in group 1
+    # id_span = {1=>2, 2=>2, 3=>2}      
+
+    # nofobs_in_sorted_G, noffirm, noftime
+    nofobsinG_list = combine(groupby(data, _dicM[:Gvar][1]), _dicM[:timevar][1] => length => :nofobs_in_sortG).nofobs_in_sortG  # vector{Int64}
+    noffirm_list = combine(groupby(data, _dicM[:Gvar][1]), _dicM[:idvar][1] => length ∘ unique => :n_distinct_firm_id).n_distinct_firm_id
+    noftime_list = combine(groupby(data, [_dicM[:Gvar][1], _dicM[:idvar][1]]), _dicM[:timevar][1] => length => :n_distinct_firm_id).n_distinct_firm_id
+
+    # group_span = sort!(OrderedDict(countmap(data[:,_dicM[:Gvar][1]])))
+    # id_span = sort!(OrderedDict(countmap(data[:,_dicM[:idvar][1]])))
+
+    # group_nofid = combine(groupby(data, :group_id), :firm_id => length ∘ unique => :n_distinct_firm_id)
+    # group_nofid_dict = OrderedDict(zip(group_id[!, _dicM[:Gvar][1]], group_nofid.n_distinct_firm_id))
+
+    # group_id =  combine(groupby(data, _dicM[:Gvar][1]), :firm_id => unique => :distinct_firm_id)
+    # group_id_dict = OrderedDict(zip(group_id[!, _dicM[:Gvar][1]], group_id.distinct_firm_id))
+    
 
     #* --- get dummy variable of timevar --- *#
 
-    #              !!!!!!!!!!!!!   waiting for coding   !!!!!!!!!!!!!
-    #                              output: Tvar matrix          #
     
-    unique_T = unique(tvar)  
+    unique_T = sort(unique(tvar))  # sort to make sure time dummy variables (Tvar) are in ascending order
 
     Tvar = DataFrame()  # intitialize dummy time dataframe, not matrix since need to reserve time information in column label
     # e.g.  
@@ -88,21 +86,32 @@ function getvar(dat::DataFrame)
     #            3          ==>        0   1   0   
     #            1                     0   0   1  
     #             ]                    1   0   0 ]
-
     for Time in unique_T
         Tvar[!,"$Time"] = Float64.(tvar .== Time)
     end
+
+    intercept_exist = Bool(_dicM[:is_intercept_exist][1])
+    intercept_exist && (Tvar = Tvar[!,1:(end-1)])  # avoid dummy variable trap
+    
+    
+
+    data = hcat(data[!,Not(_dicM[:timevar][1])], Tvar)  
+
+
+    
 
     #* --- retrieve and generate important parameters -----
 
     #*   number of obs and number of variables
     nofx  = nofT = 0  # to make a complete list
 
-    nofobs  = nrow(dat)    
-    nofx = size(xvar)[2]  # nofx: number of x vars
-    nofT = size(Tvar)[2]  # nofT: number of unique time in data set
+    nofobs  = nrow(data)    
+    nofx = length(_dicM[:frontier])  # nofx: number of x vars
+    
+    #* if intercept exist, then drop one of time period to avoid dummy trap, therefore nofT minus one
+    intercept_exist ? (nofT = length(unique_T) - 1) :  (nofT = length(unique_T))
 
-
+             
   
     nofpara = nofx + nofT + 6 # coefficient β, D and log_σ²₍₀, log_σ²₍*, log_σ²ᵤ₀, log_σ²ᵤ*, log_σ²w⁰, log_σ²w*
 
@@ -114,10 +123,10 @@ function getvar(dat::DataFrame)
 
     begx = 1
     endx = nofx
-    # begz = endx + 1
-  # endz = begz + nofz -1
     begT = endx + 1
     endT = begT + nofT -1
+    
+
     pos_log_σ²ᵤ₀ = endT + 1
     pos_log_σ²ᵤ_star = endT + 2
     pos_log_σ²₍₀ = endT + 3
@@ -153,79 +162,20 @@ function getvar(dat::DataFrame)
               coeff_log_σ²w_star  = pos_log_σ²w_star)
 
     #* retrieve variable names for making tables
-    xnames  = names(xvar)
-  # znames  = names(zvar)
+    xnames  = names(data[!, _dicM[:frontier]])
     Tnames  = names(Tvar)
     
     varlist = vcat(" ", xnames, Tnames, 
                         ["log_σ²ᵤ₀","log_σ²ᵤ*", "log_σ²₍₀", "log_σ²₍*", "log_σ²w⁰", "log_σ²w*" ])
 
    
+    
     #* Converting the dataframe to matrix in order to do computation
-    yvar  = convert(Array{Float64}, yvar)
-    xvar = convert(Array{Float64}, xvar)
+    yvar  = convert(Array{Float64}, data[:, _dicM[:depvar][1]])  # vector{Float64}
+    xvar = convert(Array{Float64}, data[:, _dicM[:frontier]])
     Tvar = convert(Array{Float64}, Tvar)
-    Gvar  = convert(Array{Float64}, Gvar)
-    ivar  = convert(Array{Float64}, ivar)
+    Gvar  = convert(Array{Float64}, data[:, _dicM[:Gvar][1]])    # vector{Float64}
+    ivar  = convert(Array{Float64}, data[:, _dicM[:idvar][1]])   # vector{Float64}
 
-
-    
-    #* panel info and within transformation
-
-
-    IDRow_dict = IDRow_Dict(ivar)   # (Nx2): col_1 is panel's row info; col_2 is panel's number of periods
-    GID_dict = GID_Dict(Gvar, ivar)       # (Nx2): col_1 is group's row info; col_2 is ∑ (id_g * time_g) for each group
-
-    
-
-    return modelinfo1, modelinfo2, posvec, nofvar, eqvec, eqvec2, yvar, xvar, Tvar, IDRow_dict, GID_dict, varlist
+    return modelinfo1, modelinfo2, posvec, nofvar, eqvec, eqvec2, yvar, xvar, Tvar, nofobsinG_list , noffirm_list, noftime_list, varlist
 end  # getvar
-
-
-
-#=function get_rowG(Gvar)
-    # output: vector of matrix
-   
-
-    nofG  = length(unique(Gvar)) # nofG = number of unique group
-    G = Array{Int64}(undef,nofG,2) # first column store unique group label, second store #row each group
-    G[:,1] = unique(Gvar)    # list of group label without repeatation
-    for i = 1:nofG
-        G[i,2]= sum(Gvar.== G[i,1])    # number of rows each group
-
-    end
-    T_g= G[:,2] 
-
-    rowG = Vector{Vector{Int64}}()    # store row index of same group
-    for i=1:nofG
-        cc = findall(x-> x == G[i,1], Gvar) # row index of i'th group
-        push!(rowG, cc) # put the group info in the vector
-    end    
-  
-    rowGidt = hcat(rowG, T_g) 
-
-    return rowGidt # (Nx2): col_1 is group's row info; col_2 is ∑ (id_g * time_g) for each group
-end=#
-
-#=function get_rowIDT(ivar)
-    # output: vector and vector of matrix
-    
-
-    N  = length(unique(ivar)) # N=number of panels
-    id = Array{Int64}(undef,N,2)
-    id[:,1] = unique(ivar)    # list of id with no repetition
-    for i = 1:N
-        id[i,2]= sum(ivar.== id[i,1])    # number of periods for the panel
-    end
-    Tᵢ = id[:,2]
-
-    rowID = Vector{Vector{Int64}}()    # store individual's row number
-    for i=1:N
-        cc = findall(x-> x == id[i,1], ivar) # row index of i'th firm
-        push!(rowID, cc) # put the id info in the vector
-    end    
-  
-    rowIDT = hcat(rowID, Tᵢ) 
-
-    return rowIDT # (Nx2): col_1 is panel's row info; col_2 is panel's number of periods
-end=#

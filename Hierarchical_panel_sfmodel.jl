@@ -1,12 +1,12 @@
 module Hierarchical_panel_sfmodel
 
-
-#! not specify σ²ᵤ₀, σ²ᵤ_star, σ²₍₀, σ²₍_star, σ²w⁰, σ²w_star since they are only parameterized by constant
 export spec, init_vec, opt, 
        fit, predict,
        # likelihood functions 
        LL_T, 
+       DGP, # Data generate process for test.jl
        # macros for spec() and init_vec(); 
+       @is_intercept_exist, 
        @depvar, 
        @frontier, @timevar,
        @idvar, @Gvar,
@@ -16,6 +16,7 @@ export spec, init_vec, opt,
        @eq,
 
        # functions for init_vec(); 
+       is_intercept_exist,
        frontier, timevar,
        sigma2_u_0, σ²ᵤ₀, sigma2_u_star, σ²ᵤ_star, 
        sigma2_c_0, σ²₍₀, sigma2_c_star, σ²₍_star, 
@@ -27,6 +28,7 @@ export spec, init_vec, opt,
        main_solver, main_maxIT, tolerance, silent,
        # functions for sfmodel_fit
        useData
+
        
        
 
@@ -54,10 +56,12 @@ using Random                     # for loglikelyhood
 ################################################
 
 include("macro.jl")
-include("hierachy-model_loglikelyhood.jl")
-include("getvar.jl")
+include("get_var.jl")
+include("log_likelyhood.jl")
 include("prediction.jl")
-include("main_function.jl")
+
+include("main.jl")
+include("dgp.jl")
 
 
 

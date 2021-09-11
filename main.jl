@@ -10,11 +10,8 @@
 
 """
     spec(<keyword arguments>)
-
 Provide specifications of the hierarchical panel data stochastic frontier model.    
-
 # Arguments
-
 - `@depvar(::symbol)`: the dependent variable from a DataFrame.
 - `@frontier(::symbol)`: a list of variables in the frontier function (not include timevar, specify timevar independently).
 - `@timevar(::symbol)`: time variable from DataFrame
@@ -22,7 +19,6 @@ Provide specifications of the hierarchical panel data stochastic frontier model.
 - `@Gvar(::symbol)`: group variable from DataFrame
 !!! not specify cᵢ, w_g, uᵢₜ since there is no exogenous determinant in this model, i.e. @cᵢ(_cons), @w_g(_cons), @uᵢₜ(_cons), which is trivial 
     to specify
-
 """
 function spec(arg::Vararg) 
 
@@ -169,7 +165,7 @@ function fit(sfdat::DataFrame) #, D1::Dict = _dicM, D2::Dict = _dicINI, D3::Dict
     # eqvec2: (coeff_frontier=(1,3), coef_Time=(4,5), coeff_log_σ²ᵤ₀ = 6...); named tuple of equation and parameter positions, for predict()
     # varlist: ("x1", "x2",...); variable names for making table
 
-    (minfo1, minfo2, pos, num, eqvec, eqvec2, yvar, xvar, Tvar, IDRow_dict,GID_dict, varlist) = getvar(sfdat)
+    (minfo1, minfo2, pos, num, eqvec, eqvec2, yvar, xvar, Tvar, nofobsinG_list , noffirm_list, noftime_list, varlist) = getvar(sfdat)
 
     xtvar = hcat(xvar,Tvar)  # combine xvar and tvar horizontally since they are both independent variables in regression
     #* ### print preliminary information ########
@@ -249,7 +245,7 @@ function fit(sfdat::DataFrame) #, D1::Dict = _dicM, D2::Dict = _dicINI, D3::Dict
 
     _Hessian = TwiceDifferentiable(rho -> LL_T( 
                    yvar, xvar, Tvar, pos, rho,
-                   IDRow_dict, GID_dict),
+                   nofobsinG_list , noffirm_list, noftime_list),
              init_vec;               
              autodiff=:forward); 
 
@@ -550,4 +546,3 @@ end
 function fit(sfdat::Any) 
     throw(ArgumentError("The dataset specified in fit() must be a DataFrame."))
 end
-
