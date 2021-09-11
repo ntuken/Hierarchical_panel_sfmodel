@@ -108,7 +108,7 @@ function predict(eq::Vector{Symbol},  sfdata::DataFrame)
         # if equation is error standard deviation since _cons is only exogenous determinant of them,
         # just return estimation result directly.
 
-        println("Since there is no other exogenous determinant for $eq_var except _cons, prediction for every observation will be same, therefore, just return one prediction")
+        # "Since there is no other exogenous determinant for $eq_var except _cons, prediction for every observation will be same, therefore, just return one prediction")
         takeexp == true || return(_eqncoe[eq_coe])
         
         return exp(_eqncoe[eq_coe])
