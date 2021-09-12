@@ -44,9 +44,9 @@ function DGP(coef_estimation::Vector{Float64}; noftime_perID=2, nofx=2, nofG=10,
 
 	# DGP for error term
 	U = rand(Normal(0, σᵤ₀), nobs) .- rand(TruncatedNormal(0, σᵤ_star, 0, Inf), nobs)
-	C = rand(Normal(0, σ₍₀), nobs) .- rand(TruncatedNormal(0, σ₍_star, 0, Inf), nobs)
-	W = rand(Normal(0, σw⁰), nobs) .- rand(TruncatedNormal(0, σw_star, 0, Inf), nobs)
-
+	C = repeat(rand(Normal(0, σ₍₀), nofid_perG*nofG) .- rand(TruncatedNormal(0, σ₍_star, 0, Inf), nofid_perG*nofG), inner=noftime_perID)
+	W = repeat(rand(Normal(0, σw⁰), nofG) .- rand(TruncatedNormal(0, σw_star, 0, Inf), nofG), inner=nofid_perG*noftime_perID)
+	
 	Y = (X*β) .+ (T*ϴ) .+ C .+ W .+ U
 
 	Data = DataFrame(hcat(Y, X, T_vec, G, id))
@@ -64,7 +64,8 @@ function DGP(coef_estimation::Vector{Float64}; noftime_perID=2, nofx=2, nofG=10,
 end
 
 # println(DGP([1.0,1.0,2.2, 0.5,0.5,0.5,0.5,0.5,0.5]))
-println(DGP([1.0,1.0,2.2, 0.43,0.5,0.1,0.7,0.9,0.6], nofG=100))
-
+# println(DGP([1.0,1.0,2.2, 0.43,0.5,0.1,0.7,0.9,0.6], nofG=100))
+# df = DGP([1.0,1.0,2.2,1.45,2.45,1.87, 0.43,0.5,0.1,0.7,0.9,0.6], nofG=30, nofid_perG=5, noftime_perID=5, nofx=2)
+# println(df)
 
 
