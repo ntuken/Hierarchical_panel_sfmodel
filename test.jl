@@ -71,13 +71,13 @@ using Hierarchical_panel_sfmodel
 # ------------------------------------------------------------------------- #
 
 # df = CSV.read("sim_data1.csv", DataFrame; header=1, delim=",")
+# df[!,:_cons] .= 1
 
-
-# spec(@is_intercept_exist(false), @depvar(yit), @frontier(xit), @timevar(time_id), @idvar(firm_id), @Gvar(group_id))
+# spec(@is_intercept_exist(false), @depvar(yit), @frontier(_cons, xit), @timevar(time_id), @idvar(firm_id), @Gvar(group_id))
 # # spec(@depvar(yit), @frontier(_cons,xit), @timevar(time_id), @idvar(firm_id), @Gvar(group_id))
 
 # # @timebar() require user to set init_vec for every period, therefore user should know how many period span 
-# init_vec(@frontier(0.5,1), @timevar(0.1))
+# init_vec(@frontier(0.5,1))
 
 # # init_vec(@frontier(0.5,1), @timevar(0.1, 0.1)) 
 
@@ -99,11 +99,11 @@ using Hierarchical_panel_sfmodel
 
 # ---------------------------------------------------------
 
-df = DGP([1.0,1.0,2.2, 0.43,0.5,0.1,0.7,0.9,0.6], nofG=30, nofid_perG=5, noftime_perID=2, nofx=2)
+df = DGP()
 
+println(df)
 
-
-spec(@is_intercept_exist(true), @depvar(yit), @frontier(_cons,x1t), @timevar(Time), @idvar(id), @Gvar(Group))
+spec(@is_intercept_exist(true), @depvar(yit), @frontier(_cons), @timevar(Time), @idvar(Firm), @Gvar(Group))
 # spec(@depvar(yit), @frontier(_cons,xit), @timevar(time_id), @idvar(firm_id), @Gvar(group_id))
 
 # @timebar() require user to set init_vec for every period, therefore user should know how many period span 
@@ -113,7 +113,7 @@ init_vec( @σ²ᵤ₀(2), @σ²ᵤ_star(2), @σ²₍₀(0.75), @σ²₍_star(0.5
 
 opt( warmstart_solver(NelderMead()),    
      warmstart_maxIT(10),
-	 main_solver(NewtonTrustRegion()),      
+	 main_solver(Newton()),      
 	 main_maxIT(2000), 
 	 tolerance(1e-8)
 	 #, silent(true)

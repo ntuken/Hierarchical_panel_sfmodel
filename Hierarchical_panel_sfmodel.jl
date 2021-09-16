@@ -1,5 +1,8 @@
 module Hierarchical_panel_sfmodel
 
+
+
+
 export spec, init_vec, opt, 
        fit, predict,
        # likelihood functions 
@@ -47,9 +50,25 @@ using Revise
 using KahanSummation
 using Kronecker                  # for loglikelyhood compuation
 using Random                     # for loglikelyhood
+using HaltonSequences
 
-# Random.seed!(0);                    # Fix random seed generator for reproducibility. Need Random package.
-# already set random seed in model_loglikelyhood.jl, therefore not set random seed here
+Random.seed!(0);                    # Fix random seed generator for reproducibility. Need Random package.
+
+""" create  HaltonSequences  """
+
+nofdraw = 100
+randseq_tmp = HaltonPoint(4, start=20, length=nofdraw)  # dimension is 4(w_0, w_star, c_0, c_star)
+
+randseq = zeros(nofdraw, 4)
+for i in 1:nofdraw
+    randseq[i,:] = randseq_tmp[i]
+end
+
+my_w_g_1 = quantile.(Normal(0,1), randseq[:,1])
+my_w_g_2 =   quantile.(Normal(0,1), (0.5 .* randseq[:,2]) .+ 0.5)
+
+my_c_i_1 = quantile.(Normal(0,1), randseq[:,3])
+my_c_i_2 = quantile.(Normal(0,1), (0.5 .* randseq[:,4]) .+ 0.5)
 
 ################################################
 ##    include other files; order important    ##
@@ -58,9 +77,12 @@ using Random                     # for loglikelyhood
 include("macro.jl")
 include("get_var.jl")
 include("log_likelyhood.jl")
+# include("getvar_simple.jl")
+# include("log_likelyhood_simple.jl")
 include("prediction.jl")
 
 include("main.jl")
+# include("main_simple.jl")
 include("dgp.jl")
 
 
